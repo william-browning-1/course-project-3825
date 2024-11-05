@@ -42,11 +42,11 @@ list_of_clients = []
 def clientthread(conn, addr): 
 
 	# sends a message to the client whose user object is conn 
-	conn.send("Welcome to this chatroom!") 
+	conn.send("Welcome to this chatroom!".encode()) 
 
 	while True: 
 			try: 
-				message = conn.recv(2048) 
+				message = conn.recv(2048).decode()
 				if message: 
 
 					"""prints the message and address of the 
@@ -55,7 +55,7 @@ def clientthread(conn, addr):
 					print ("<" + addr[0] + "> " + message) 
 
 					# Calls broadcast function to send message to all 
-					message_to_send = "<" + addr[0] + "> " + message 
+					message_to_send = ("<" + addr[0] + "> " + message).encode()
 					broadcast(message_to_send, conn) 
 
 				else: 
