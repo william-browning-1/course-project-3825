@@ -40,31 +40,22 @@ server.listen(100)
 list_of_clients = [] 
 
 def clientthread(conn, addr): 
+    conn.send("Welcome to this chatroom!".encode())  # Encoding and sending message
+    while True: 
+        try: 
+            message = conn.recv(2048).decode()  # Decode to remove 'b' before processing
+            if message:
+                # Print the message as a regular string, removing b'...'
+                print("<" + addr[0] + "> " + message)
 
-	# sends a message to the client whose user object is conn 
-	conn.send("Welcome to this chatroom!".encode()) 
+                # Broadcast the message to other clients
+                message_to_send = ("<" + addr[0] + "> " + message).encode()  # Encode for broadcasting
+                broadcast(message_to_send, conn)
+            else: 
+                remove(conn)
+        except: 
+            continue
 
-	while True: 
-			try: 
-				message = conn.recv(2048).decode()
-				if message: 
-
-					"""prints the message and address of the 
-					user who just sent the message on the server 
-					terminal"""
-					print ("<" + addr[0] + "> " + message) 
-
-					# Calls broadcast function to send message to all 
-					message_to_send = ("<" + addr[0] + "> " + message).encode()
-					broadcast(message_to_send, conn) 
-
-				else: 
-					"""message may have no content if the connection 
-					is broken, in this case we remove the connection"""
-					remove(conn) 
-
-			except: 
-				continue
 
 """Using the below function, we broadcast the message to all 
 clients who's object is not the same as the one sending 
@@ -73,7 +64,7 @@ def broadcast(message, connection):
 	for clients in list_of_clients: 
 		if clients!=connection: 
 			try: 
-				clients.send(message) 
+				clients.send(message.decode()) 
 			except: 
 				clients.close() 
 
