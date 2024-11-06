@@ -2,7 +2,6 @@ import socket
 import threading
 import sys 
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 if len(sys.argv) != 3: 
 	print ("Correct usage: script, IP address, port number")
 	exit() 
