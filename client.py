@@ -1,62 +1,46 @@
 import socket
-import select
-import sys
-import os
+import threading
+import sys 
 
-def main():
-    # Check command-line arguments
-    if len(sys.argv) != 3:
-        print("Correct usage: script, IP address, port number")
-        sys.exit()
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+if len(sys.argv) != 3: 
+	print ("Correct usage: script, IP address, port number")
+	exit() 
 
-    IP_address = sys.argv[1]
-    Port = int(sys.argv[2])
+# Specify  IP address and port number of the chat server
+HOST = str(sys.argv[1]) 
+PORT = int(sys.argv[2]) 
+server.connect((HOST, PORT)) 
 
-    # Initialize the socket
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.connect((IP_address, Port))
 
-    # On Windows, `select` may not work properly with standard input (sys.stdin)
-    # In this case, we use `msvcrt` to check for keyboard input
-    use_msvcrt = os.name == 'nt'
+# Function to receive messages from the server
+def receive_messages(client_socket):
+    while True:
+        try:
+            message = client_socket.recv(1024).decode('utf-8')
+            if not message:
+                break
+            print(message)
+        except:
+            print("Connection closed by the server.")
+            break
 
-    try:
-        while True:
-            sockets_list = [server]
-            if not use_msvcrt:
-                sockets_list.append(sys.stdin)  # Only add sys.stdin if not on Windows
+# Function to send messages to other clients via the server
+def send_messages(client_socket):
+    while True:
+        message = input()
+        client_socket.send(message.encode('utf-8'))
+        if message == ".exit":
+            break
 
-            # Wait for input on server socket or stdin
-            read_sockets, _, _ = select.select(sockets_list, [], [])
+# Function to start the client and connect to the server
+def start_client():
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((HOST, PORT))
 
-            for socks in read_sockets:
-                if socks == server:
-                    # Server has sent a message
-                    message = socks.recv(2048)
-                    if message:
-                        print(message.decode())
-                    else:
-                        print("Connection closed by server.")
-                        sys.exit()
-                else:
-                    # User has typed a message
-                    if use_msvcrt:  # Windows-specific input handling
-                        import msvcrt
-                        if msvcrt.kbhit():
-                            message = input()
-                            if message:
-                                server.send(message.encode())
-                                print(f"<You> {message}")
-                    else:  # Unix-like systems
-                        message = sys.stdin.readline()
-                        if message:
-                            server.send(message.encode())
-                            print(f"<You> {message}", end='')
+    # Start threads for receiving and sending messages
+    threading.Thread(target=receive_messages, args=(client_socket,)).start()
+    send_messages(client_socket)
+    client_socket.close()
 
-    except KeyboardInterrupt:
-        print("Disconnected from chat.")
-    finally:
-        server.close()
-
-if __name__ == "__main__":
-    main()
+start_client()
