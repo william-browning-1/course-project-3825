@@ -10,7 +10,6 @@ if len(sys.argv) != 3:
 # Specify  IP address and port number of the chat server
 HOST = str(sys.argv[1]) 
 PORT = int(sys.argv[2]) 
-server.connect((HOST, PORT)) 
 
 
 # Function to receive messages from the server
