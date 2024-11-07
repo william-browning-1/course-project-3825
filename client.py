@@ -16,8 +16,6 @@ def receive_messages(client_socket):
     while True:
         try:
             message = client_socket.recv(1024).decode('utf-8')
-            if not message:
-                break
             print(message)
         except:
             print("Connection closed by the server.")
