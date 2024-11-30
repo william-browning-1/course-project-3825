@@ -1,15 +1,14 @@
 import socket
 import threading
-import sys 
+import sys
 
 if len(sys.argv) != 3: 
-	print ("Correct usage: script, IP address, port number")
-	exit() 
+    print("Correct usage: script, IP address, port number")
+    exit()
 
-# Specify  IP address and port number of the chat server
-HOST = str(sys.argv[1]) 
-PORT = int(sys.argv[2]) 
-
+# Specify IP address and port number of the chat server
+HOST = str(sys.argv[1])
+PORT = int(sys.argv[2])
 
 # Function to receive messages from the server
 def receive_messages(client_socket):
