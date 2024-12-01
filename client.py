@@ -22,11 +22,15 @@ def receive_messages(client_socket):
 
 # Function to send messages to other clients via the server
 def send_messages(client_socket):
-    while True:
-        message = input()
-        client_socket.send(message.encode('utf-8'))
-        if message == ".exit":
-            break
+    try: 
+        while True:
+            message = input()
+            client_socket.send(message.encode('utf-8'))
+            if message == ".exit":
+                break
+    except KeyboardInterrupt:
+            client_socket.send(".exit".encode('utf-8'))
+
 
 # Function to start the client and connect to the server
 def start_client():
