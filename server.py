@@ -1,128 +1,139 @@
 import socket
 import threading
 import random
+import ssl
 import sys
 
-# Checks whether sufficient arguments have been provided
+# Check arguments
 if len(sys.argv) != 3: 
     print("Correct usage: script, IP address, port number")
     exit()
 
-# Specify IP address and port for the server from command-line arguments
 HOST = str(sys.argv[1])
 PORT = int(sys.argv[2])
 
-clients = {}  # Dictionary to store clients with their unique identifiers
+clients = {}
+groupchats = {}
 
-groupchats = {} # Dictionary to store groupchats and the included clients
-
-# Function to broadcast the list of connected clients
 def broadcast_client_list():
     connected_clients = ", ".join(clients.keys())
     for client_socket in clients.values():
         try:
             client_socket.send(f"Connected clients: {connected_clients}".encode('utf-8'))
         except:
-            pass  # Ignore any errors (e.g., if a client disconnects unexpectedly)
+            pass
 
-# Function to handle each client connection
 def handle_client(client_socket, client_id):
     while True:
         try:
             message = client_socket.recv(1024).decode('utf-8')
+            if not message:
+                break  # In case of an empty message, client may have disconnected unexpectedly
+
             if message == ".exit":
+                # Handle client disconnection
                 print(f"[{client_id}] has disconnected.")
                 client_socket.send("You have been disconnected.".encode('utf-8'))
                 client_socket.close()
                 del clients[client_id]
                 remove_from_groupchats(client_id)
-                broadcast_client_list()  # Update all clients
+                broadcast_client_list()
                 break
 
-            elif message == ".create_groupchat":
-                # Generate a unique identifier for the client
-                groupchat_id = f"Groupchat{random.randint(1000, 9999)}"
-
-                client_socket.send("Specify the clients to create groupchat with (delimited by spaces): <clientid_1> <clientid_2> ...".encode('utf-8'))
-                message = client_socket.recv(1024).decode('utf-8')
-                clients_to_add = message.split(" ")
-                
-                clients_added = [client_id]
-                for client in clients_to_add:
-                    if client not in clients.keys():
-                        client_socket.send(f"Tried to add {client}, but {client} does not exist".encode('utf-8'))
-                        continue
+            elif message.startswith(".dm"):
+                # Direct message: .dm <client_id> <message>
+                parts = message.split(" ", 2)
+                if len(parts) < 3:
+                    client_socket.send("Usage: .dm <client_id> <message>".encode('utf-8'))
+                else:
+                    target_id = parts[1]
+                    direct_message = parts[2]
+                    if target_id in clients:
+                        clients[target_id].send(f"Direct message from {client_id}: {direct_message}".encode('utf-8'))
                     else:
-                        clients_added.append(client)
-                
-                for client in clients_added:
-                    clients[client].send(f"You have been added to {groupchat_id} with {clients_added}".encode('utf-8'))
-                groupchats[groupchat_id] = clients_added
+                        client_socket.send(f"Client {target_id} not found.".encode('utf-8'))
+
+            elif message.startswith(".msg"):
+                # Broadcast message: .msg <message>
+                broadcast_message(message[5:], client_id)
+
+            elif message.startswith(".group"):
+                # Command to join or leave a group chat
+                parts = message.split(" ", 2)
+                if len(parts) < 3:
+                    client_socket.send("Usage: .group <join/leave> <group_name>".encode('utf-8'))
+                else:
+                    action, group_name = parts[1], parts[2]
+                    if action == "join":
+                        join_groupchat(client_id, group_name)
+                    elif action == "leave":
+                        leave_groupchat(client_id, group_name)
+                    else:
+                        client_socket.send("Invalid group action. Use 'join' or 'leave'.".encode('utf-8'))
 
             else:
-                # Assume the message format: "target_id: message"
-                try:
-                    target_id, msg = message.split(":", 1)
-                except:
-                    client_socket.send(f"Incorrect message format or command not understood".encode('utf-8'))
-                    continue
-
-                if target_id in clients:
-                    # Forward the message to the target client
-                    clients[target_id].send(f"[{client_id}] says: {msg}".encode('utf-8'))
-                    # Send a receipt confirmation back to the sender
-                    client_socket.send(f"Message delivered to [{target_id}]".encode('utf-8'))
-                    
-                elif target_id in groupchats:
-                    groupchat = groupchats[target_id]
-
-                    if client_id not in groupchats[target_id]:
-                        client_socket.send(f"You do not have permission to chat in this groupchat".encode('utf-8'))
-                    else:
-                        for client in groupchat:
-                            # Forward the message to the clients in the groupchat
-                            clients[client].send(f"[{client_id}] in {target_id} says: {msg}".encode('utf-8'))
-                        # Send a receipt confirmation back to the sender
-                        client_socket.send(f"Message delivered to [{target_id}]".encode('utf-8'))
-
-                else:
-                    # Send a "not found" message back to the sender
-                    client_socket.send("Client not found.".encode('utf-8'))
+                # Handle unrecognized message types
+                client_socket.send("Unknown command. Type .exit to disconnect.".encode('utf-8'))
 
         except Exception as e:
             print(f"Error handling client {client_id}: {e}")
             client_socket.close()
             del clients[client_id]
             remove_from_groupchats(client_id)
-            broadcast_client_list()  # Update all clients
+            broadcast_client_list()
             break
 
+def broadcast_message(message, sender_id):
+    # Send the message to all clients except the sender
+    for client_id, client_socket in clients.items():
+        if client_id != sender_id:
+            try:
+                client_socket.send(f"Broadcast from {sender_id}: {message}".encode('utf-8'))
+            except:
+                continue
+
+def join_groupchat(client_id, group_name):
+    if group_name not in groupchats:
+        groupchats[group_name] = []
+    if client_id not in groupchats[group_name]:
+        groupchats[group_name].append(client_id)
+        for client_socket in clients.values():
+            client_socket.send(f"{client_id} has joined the group chat '{group_name}'.".encode('utf-8'))
+    else:
+        clients[client_id].send(f"You are already in the group chat '{group_name}'.".encode('utf-8'))
+
+def leave_groupchat(client_id, group_name):
+    if group_name in groupchats and client_id in groupchats[group_name]:
+        groupchats[group_name].remove(client_id)
+        for client_socket in clients.values():
+            client_socket.send(f"{client_id} has left the group chat '{group_name}'.".encode('utf-8'))
+    else:
+        clients[client_id].send(f"You are not in the group chat '{group_name}'.".encode('utf-8'))
+
 def remove_from_groupchats(client_id):
-    # Remove client from all groupchats it's associated with
-    for groupchat in groupchats:
-        if client_id in groupchats[groupchat]:
-            groupchats[groupchat].remove(client_id)
+    for group_name, members in groupchats.items():
+        if client_id in members:
+            members.remove(client_id)
+            for client_socket in clients.values():
+                client_socket.send(f"{client_id} has left the group chat '{group_name}'.".encode('utf-8'))
 
-
-
-# Function to start the server and accept connections
 def start_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((HOST, PORT))
     server.listen()
-    print("Server is running...")
-    
+
+    # Wrap the socket with SSL
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+    print("Server is running with SSL...")
+
     while True:
         client_socket, addr = server.accept()
-        # Generate a unique identifier for the client
+        secure_socket = context.wrap_socket(client_socket, server_side=True)
         client_id = f"Client{random.randint(1000, 9999)}"
-        clients[client_id] = client_socket
+        clients[client_id] = secure_socket
         print(f"{client_id} connected from {addr}")
-        
-        # Broadcast the updated list of clients to all connected clients
         broadcast_client_list()
-
-        # Start a thread to handle the client's messages
-        threading.Thread(target=handle_client, args=(client_socket, client_id)).start()
+        threading.Thread(target=handle_client, args=(secure_socket, client_id)).start()
 
 start_server()
