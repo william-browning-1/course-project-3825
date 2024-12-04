@@ -71,6 +71,29 @@ def handle_client(client_socket, client_id):
                     else:
                         client_socket.send("Invalid group action. Use 'join' or 'leave'.".encode('utf-8'))
 
+            elif message.startswith(".gm"):
+                # Group chat message: .gm <groupchat_name> <message>
+                parts = message.split(" ", 2)
+                if len(parts) < 3:
+                    client_socket.send("Usage: .gm <groupchat_name> <message>".encode('utf-8'))
+                else:
+                    target_id = parts[1]
+                    direct_message = parts[2]
+
+                    groupchat = groupchats[target_id]
+
+                    if client_id not in groupchats[target_id]: # Check if client is member of the groupchat
+                        client_socket.send(f"You are not in this groupchat".encode('utf-8'))
+                    else:
+                        for client in groupchat:
+                            # Forward the message to the clients in the groupchat
+                            clients[client].send(f"[{client_id}] in {target_id} says: {msg}".encode('utf-8'))
+                        # Send a receipt confirmation back to the sender
+                        client_socket.send(f"Message delivered to [{target_id}]".encode('utf-8'))
+                    
+
+
+
             else:
                 # Handle unrecognized message types
                 client_socket.send("Unknown command. Type .exit to disconnect.".encode('utf-8'))
